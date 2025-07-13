@@ -5,6 +5,9 @@
 #include <cmath> // for abs()
 #include <algorithm> // for sort()
 #include <fstream> // for file reading
+#include <sstream>   // for string stream
+#include <map>       // for high scores
+#include <iomanip>   // for json pretty printing
 #include "MidiFile.h"
 #include "json.hpp"
 
@@ -39,6 +42,7 @@ const std::vector<sf::Keyboard::Key> LANE_KEYS = {
 // --- ゲームの状態 ---
 enum class GameState {
     TITLE,
+    OPTIONS,
     SONG_SELECTION,
     DIFFICULTY_SELECTION,
     PLAYING,
@@ -75,6 +79,72 @@ struct SongData
     std::string audioPath;
     std::vector<ChartData> charts;
 };
+
+// --- ハイスコア関連のヘルパー関数 ---
+
+// 曲と難易度からJSONのキーを生成する
+std::string generateHighScoreKey(const SongData& song, const ChartData& chart) {
+    return song.title + "-" + chart.difficultyName;
+}
+
+// scores.json からハイスコアを読み込む
+std::map<std::string, int> loadHighScores() {
+    std::map<std::string, int> highScores;
+    std::ifstream ifs("scores.json");
+    if (ifs.is_open() && ifs.peek() != std::ifstream::traits_type::eof()) {
+        try {
+            json scoresJson = json::parse(ifs);
+            for (auto it = scoresJson.begin(); it != scoresJson.end(); ++it) {
+                highScores[it.key()] = it.value();
+            }
+        } catch (const json::parse_error& e) {
+            // パースエラーが起きても、空のスコアでゲームを続行
+        }
+    }
+    return highScores;
+}
+
+// scores.json にハイスコアを保存する
+void saveHighScores(const std::map<std::string, int>& highScores) {
+    json scoresJson;
+    for (const auto& pair : highScores) {
+        scoresJson[pair.first] = pair.second;
+    }
+    std::ofstream ofs("scores.json");
+    ofs << std::setw(4) << scoresJson << std::endl;
+}
+
+// --- 設定関連のヘルパー関数 ---
+
+struct GameConfig {
+    float noteSpeedMultiplier = 1.0f;
+};
+
+// config.json から設定を読み込む
+GameConfig loadConfig() {
+    GameConfig config;
+    std::ifstream ifs("config.json");
+    if (ifs.is_open() && ifs.peek() != std::ifstream::traits_type::eof()) {
+        try {
+            json configJson = json::parse(ifs);
+            if (configJson.contains("note_speed_multiplier")) {
+                config.noteSpeedMultiplier = configJson["note_speed_multiplier"];
+            }
+        } catch (const json::parse_error& e) {
+            // パースエラーが起きても、デフォルト設定でゲームを続行
+        }
+    }
+    return config;
+}
+
+// config.json に設定を保存する
+void saveConfig(const GameConfig& config) {
+    json configJson;
+    configJson["note_speed_multiplier"] = config.noteSpeedMultiplier;
+    std::ofstream ofs("config.json");
+    ofs << std::setw(4) << configJson << std::endl;
+}
+
 
 // --- 譜面読み込み関数 ---
 std::vector<Note> loadChartFromMidi(const std::string& path) {
@@ -164,17 +234,29 @@ int main()
         return -1;
     }
 
+    // --- ハイスコアをJSONから読み込み ---
+    auto highScores = loadHighScores();
+
+    // --- 設定をJSONから読み込み ---
+    auto config = loadConfig();
+
     // --- UI要素の準備 ---
     // タイトル画面
     sf::Text titleText("Sound Game", font, 80);
     sf::FloatRect textRect = titleText.getLocalBounds();
     titleText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-    titleText.setPosition(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f - 100.f);
+    titleText.setPosition(WINDOW_WIDTH / 2.0f, 200.f);
 
-    sf::Text startText("Press Enter to Start", font, 30);
-    textRect = startText.getLocalBounds();
-    startText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-    startText.setPosition(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f + 50.f);
+    std::vector<sf::Text> titleMenuTexts(2);
+    std::vector<std::string> titleMenuStrings = {"Start Game", "Options"};
+    for(size_t i = 0; i < titleMenuTexts.size(); ++i) {
+        titleMenuTexts[i].setFont(font);
+        titleMenuTexts[i].setCharacterSize(32);
+        titleMenuTexts[i].setString(titleMenuStrings[i]);
+        textRect = titleMenuTexts[i].getLocalBounds();
+        titleMenuTexts[i].setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
+        titleMenuTexts[i].setPosition(WINDOW_WIDTH / 2.0f, 400.f + i * 60.f);
+    }
 
     // 曲選択画面
     sf::Text songSelectionTitle("Select a Song", font, 50);
@@ -194,6 +276,25 @@ int main()
     // 難易度選択画面
     sf::Text difficultySelectionTitle("", font, 50);
     std::vector<sf::Text> difficultyTexts;
+    sf::Text difficultyHighScoreText("", scoreFont, 28);
+    difficultyHighScoreText.setFillColor(sf::Color(255, 255, 100)); // Light Yellow
+
+    // オプション画面
+    sf::Text optionsTitle("Options", font, 60);
+    textRect = optionsTitle.getLocalBounds();
+    optionsTitle.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
+    optionsTitle.setPosition(WINDOW_WIDTH / 2.0f, 150.f);
+
+    sf::Text speedOptionText("Note Speed", font, 32);
+    speedOptionText.setPosition(WINDOW_WIDTH / 2.0f - 200.f, 300.f);
+
+    sf::Text speedValueText("", font, 32);
+    speedValueText.setFillColor(sf::Color::Yellow);
+
+    sf::Text optionsHelpText("Left/Right to change, Enter to save and exit", font, 24);
+    textRect = optionsHelpText.getLocalBounds();
+    optionsHelpText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
+    optionsHelpText.setPosition(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 100.f);
 
     // ポーズ画面
     sf::RectangleShape pauseOverlay(sf::Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
@@ -255,12 +356,25 @@ int main()
     missCountText.setOutlineThickness(2.f);
     missCountText.setFillColor(sf::Color::Red);
 
-    sf::Text continueText("Press Enter to Continue", scoreFont, 30);
-    continueText.setOutlineColor(sf::Color::Black);
-    continueText.setOutlineThickness(2.f);
-    textRect = continueText.getLocalBounds();
-    continueText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-    continueText.setPosition(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 100.f);
+    sf::Text newRecordText("", scoreFont, 40);
+    newRecordText.setOutlineColor(sf::Color::Black);
+    newRecordText.setOutlineThickness(2.f);
+    newRecordText.setFillColor(sf::Color::Yellow);
+
+    std::vector<sf::Text> resultsMenuTexts(2);
+    std::vector<std::string> resultsMenuStrings = {"Retry", "Back to Select"};
+    for(size_t i = 0; i < resultsMenuTexts.size(); ++i) {
+        resultsMenuTexts[i].setFont(scoreFont); // フォントを変更
+        resultsMenuTexts[i].setCharacterSize(32);
+        resultsMenuTexts[i].setString(resultsMenuStrings[i]);
+        resultsMenuTexts[i].setOutlineColor(sf::Color::Black);
+        resultsMenuTexts[i].setOutlineThickness(2.f);
+        textRect = resultsMenuTexts[i].getLocalBounds();
+        resultsMenuTexts[i].setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
+        // 横並びのレイアウトに変更
+        float xPos = (WINDOW_WIDTH / (resultsMenuTexts.size() + 1.0f)) * (i + 1.0f);
+        resultsMenuTexts[i].setPosition(xPos, WINDOW_HEIGHT - 100.f);
+    }
 
 
     // --- ゲームプレイ用オブジェクト ---
@@ -289,6 +403,10 @@ int main()
     size_t selectedSongIndex = 0;
     size_t selectedDifficultyIndex = 0;
     size_t selectedPauseMenuIndex = 0;
+    size_t selectedTitleMenuIndex = 0;
+    size_t selectedResultsMenuIndex = 0;
+
+    std::vector<sf::Clock> laneFlashClocks(LANE_COUNT);
 
     // --- ゲームループ ---
     while (window.isOpen())
@@ -301,9 +419,33 @@ int main()
 
             if (gameState == GameState::TITLE)
             {
-                if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Enter)
-                {
-                    gameState = GameState::SONG_SELECTION;
+                if (event.type == sf::Event::KeyPressed) {
+                    if (event.key.code == sf::Keyboard::Down) {
+                        selectedTitleMenuIndex = (selectedTitleMenuIndex + 1) % titleMenuTexts.size();
+                    } else if (event.key.code == sf::Keyboard::Up) {
+                        selectedTitleMenuIndex = (selectedTitleMenuIndex + titleMenuTexts.size() - 1) % titleMenuTexts.size();
+                    } else if (event.key.code == sf::Keyboard::Enter) {
+                        if (selectedTitleMenuIndex == 0) { // Start Game
+                            gameState = GameState::SONG_SELECTION;
+                        } else if (selectedTitleMenuIndex == 1) { // Options
+                            gameState = GameState::OPTIONS;
+                        }
+                    }
+                }
+            }
+            else if (gameState == GameState::OPTIONS)
+            {
+                if (event.type == sf::Event::KeyPressed) {
+                    if (event.key.code == sf::Keyboard::Right) {
+                        config.noteSpeedMultiplier += 0.1f;
+                        if (config.noteSpeedMultiplier > 5.0f) config.noteSpeedMultiplier = 5.0f;
+                    } else if (event.key.code == sf::Keyboard::Left) {
+                        config.noteSpeedMultiplier -= 0.1f;
+                        if (config.noteSpeedMultiplier < 0.1f) config.noteSpeedMultiplier = 0.1f;
+                    } else if (event.key.code == sf::Keyboard::Enter || event.key.code == sf::Keyboard::Escape) {
+                        saveConfig(config);
+                        gameState = GameState::TITLE;
+                    }
                 }
             }
             else if (gameState == GameState::SONG_SELECTION)
@@ -341,6 +483,10 @@ int main()
                             diffText.setPosition(WINDOW_WIDTH / 2.0f, 200.f + i * 60.f);
                             difficultyTexts.push_back(diffText);
                         }
+                    }
+                    else if (event.key.code == sf::Keyboard::Escape)
+                    {
+                        gameState = GameState::TITLE;
                     }
                 }
             }
@@ -420,6 +566,7 @@ int main()
                                         }
 
                                         if (currentJudgment != Judgment::NONE) {
+                                            laneFlashClocks[i].restart(); // 対応するレーンの時計をリスタート
                                             tapSound.play();
                                             note.isProcessed = true;
                                             keyProcessed = true;
@@ -434,6 +581,7 @@ int main()
                                             sf::FloatRect textRect = judgmentText.getLocalBounds();
                                             judgmentText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
                                             judgmentText.setPosition(LANE_START_X + LANE_AREA_WIDTH / 2.f, JUDGMENT_LINE_Y - 100.f);
+                                            judgmentText.setScale(1.5f, 1.5f); // アニメーションの初期スケールを設定
                                             judgmentClock.restart();
                                             break;
                                         }
@@ -493,15 +641,57 @@ int main()
             }
             else if (gameState == GameState::RESULTS)
             {
-                if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Enter)
-                {
-                    gameState = GameState::SONG_SELECTION;
+                if (event.type == sf::Event::KeyPressed) {
+                    if (event.key.code == sf::Keyboard::Right) {
+                        selectedResultsMenuIndex = (selectedResultsMenuIndex + 1) % resultsMenuTexts.size();
+                    } else if (event.key.code == sf::Keyboard::Left) {
+                        selectedResultsMenuIndex = (selectedResultsMenuIndex + resultsMenuTexts.size() - 1) % resultsMenuTexts.size();
+                    } else if (event.key.code == sf::Keyboard::Enter) {
+                        if (selectedResultsMenuIndex == 0) { // Retry
+                            gameState = GameState::PLAYING;
+                            score = 0;
+                            combo = 0;
+                            maxCombo = 0;
+                            perfectCount = 0;
+                            greatCount = 0;
+                            missCount = 0;
+                            nextNoteIndex = 0;
+                            activeNotes.clear();
+                            music.stop();
+                            music.play();
+                        } else if (selectedResultsMenuIndex == 1) { // Back to Select
+                            gameState = GameState::SONG_SELECTION;
+                        }
+                    }
                 }
             }
         }
 
         // --- 更新処理 ---
-        if (gameState == GameState::SONG_SELECTION)
+        if (gameState == GameState::TITLE)
+        {
+            for(size_t i = 0; i < titleMenuTexts.size(); ++i)
+            {
+                if(i == selectedTitleMenuIndex)
+                {
+                    titleMenuTexts[i].setFillColor(sf::Color::Yellow);
+                }
+                else
+                {
+                    titleMenuTexts[i].setFillColor(sf::Color::White);
+                }
+            }
+        }
+        else if (gameState == GameState::OPTIONS)
+        {
+            std::stringstream ss;
+            ss << std::fixed << std::setprecision(1) << config.noteSpeedMultiplier;
+            speedValueText.setString(ss.str());
+            textRect = speedValueText.getLocalBounds();
+            speedValueText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
+            speedValueText.setPosition(speedOptionText.getPosition().x + 300.f, speedOptionText.getPosition().y + 20.f);
+        }
+        else if (gameState == GameState::SONG_SELECTION)
         {
             for(size_t i = 0; i < songTitleTexts.size(); ++i)
             {
@@ -528,6 +718,16 @@ int main()
                     difficultyTexts[i].setFillColor(sf::Color::White);
                 }
             }
+
+            // ハイスコア表示
+            const auto& selectedSong = songs[selectedSongIndex];
+            const auto& selectedChart = selectedSong.charts[selectedDifficultyIndex];
+            std::string key = generateHighScoreKey(selectedSong, selectedChart);
+            int highScore = highScores.count(key) ? highScores.at(key) : 0;
+            difficultyHighScoreText.setString("High Score: " + std::to_string(highScore));
+            textRect = difficultyHighScoreText.getLocalBounds();
+            difficultyHighScoreText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
+            difficultyHighScoreText.setPosition(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 150.f);
         }
         else if (gameState == GameState::PAUSED)
         {
@@ -543,11 +743,25 @@ int main()
                 }
             }
         }
+        else if (gameState == GameState::RESULTS)
+        {
+            for(size_t i = 0; i < resultsMenuTexts.size(); ++i)
+            {
+                if(i == selectedResultsMenuIndex)
+                {
+                    resultsMenuTexts[i].setFillColor(sf::Color::Yellow);
+                }
+                else
+                {
+                    resultsMenuTexts[i].setFillColor(sf::Color::White);
+                }
+            }
+        }
         else if (gameState == GameState::PLAYING)
         {
             float currentMusicTime = music.getPlayingOffset().asSeconds();
 
-            float fallTime = JUDGMENT_LINE_Y / NOTE_PIXELS_PER_SECOND;
+            float fallTime = JUDGMENT_LINE_Y / (NOTE_PIXELS_PER_SECOND * config.noteSpeedMultiplier);
             while (nextNoteIndex < chart.size() && chart[nextNoteIndex].spawnTime < currentMusicTime + fallTime) {
                 activeNotes.push_back(chart[nextNoteIndex]);
                 nextNoteIndex++;
@@ -556,7 +770,7 @@ int main()
             for (auto& note : activeNotes) {
                 if (!note.isProcessed) {
                     float timeUntilJudgment = note.spawnTime - currentMusicTime;
-                    float newY = JUDGMENT_LINE_Y - (timeUntilJudgment * NOTE_PIXELS_PER_SECOND);
+                    float newY = JUDGMENT_LINE_Y - (timeUntilJudgment * (NOTE_PIXELS_PER_SECOND * config.noteSpeedMultiplier));
                     note.shape.setPosition(note.shape.getPosition().x, newY);
 
                     if (timeUntilJudgment < -GREAT_WINDOW) {
@@ -568,6 +782,7 @@ int main()
                         sf::FloatRect textRect = judgmentText.getLocalBounds();
                         judgmentText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
                         judgmentText.setPosition(LANE_START_X + LANE_AREA_WIDTH / 2.f, JUDGMENT_LINE_Y - 100.f);
+                        judgmentText.setScale(1.5f, 1.5f); // アニメーションの初期スケールを設定
                         judgmentClock.restart();
                     }
                 }
@@ -581,7 +796,13 @@ int main()
             );
 
             for (int i = 0; i < LANE_COUNT; ++i) {
-                lanes[i].setFillColor(sf::Keyboard::isKeyPressed(LANE_KEYS[i]) ? LANE_COLOR_PRESSED : LANE_COLOR_NORMAL);
+                if (laneFlashClocks[i].getElapsedTime().asSeconds() < 0.1f) {
+                    lanes[i].setFillColor(sf::Color::White); // ヒットした瞬間は白く光る
+                } else if (sf::Keyboard::isKeyPressed(LANE_KEYS[i])) {
+                    lanes[i].setFillColor(LANE_COLOR_PRESSED); // キーが押されている間は黄色
+                } else {
+                    lanes[i].setFillColor(LANE_COLOR_NORMAL); // 通常時は半透明の黒
+                }
             }
 
             scoreText.setString("Score: " + std::to_string(score));
@@ -592,10 +813,33 @@ int main()
                 comboText.setPosition(LANE_START_X + LANE_AREA_WIDTH / 2.f, JUDGMENT_LINE_Y - 50.f);
             }
 
+            // 判定テキストのアニメーション
+            const float animationDuration = 0.2f; // アニメーションの時間（秒）
+            float elapsed = judgmentClock.getElapsedTime().asSeconds();
+            if (elapsed < animationDuration) {
+                float scale = 1.5f - (0.5f * (elapsed / animationDuration));
+                judgmentText.setScale(scale, scale);
+            } else {
+                judgmentText.setScale(1.0f, 1.0f);
+            }
+
             // 曲の終了を検知
             if (music.getStatus() == sf::Music::Stopped && activeNotes.empty())
             {
                 gameState = GameState::RESULTS;
+
+                // ハイスコアのチェックと更新
+                const auto& selectedSong = songs[selectedSongIndex];
+                const auto& selectedChart = selectedSong.charts[selectedDifficultyIndex];
+                std::string key = generateHighScoreKey(selectedSong, selectedChart);
+                int oldHighScore = highScores.count(key) ? highScores.at(key) : 0;
+                bool isNewRecord = score > oldHighScore;
+                if (isNewRecord) {
+                    highScores[key] = score;
+                    saveHighScores(highScores);
+                }
+
+                // リザルトテキストの設定
                 finalScoreText.setString("Score: " + std::to_string(score));
                 maxComboText.setString("Max Combo: " + std::to_string(maxCombo));
                 perfectCountText.setString("Perfect: " + std::to_string(perfectCount));
@@ -625,6 +869,15 @@ int main()
                 textRect = missCountText.getLocalBounds();
                 missCountText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
                 missCountText.setPosition(WINDOW_WIDTH * 3.0f / 4.0f, countsY);
+
+                if (isNewRecord) {
+                    newRecordText.setString("NEW RECORD!");
+                    textRect = newRecordText.getLocalBounds();
+                    newRecordText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
+                    newRecordText.setPosition(WINDOW_WIDTH / 2.0f, 180.f);
+                } else {
+                    newRecordText.setString(""); // 新記録でなければ何も表示しない
+                }
             }
         }
 
@@ -634,7 +887,16 @@ int main()
         if (gameState == GameState::TITLE)
         {
             window.draw(titleText);
-            window.draw(startText);
+            for(const auto& text : titleMenuTexts) {
+                window.draw(text);
+            }
+        }
+        else if (gameState == GameState::OPTIONS)
+        {
+            window.draw(optionsTitle);
+            window.draw(speedOptionText);
+            window.draw(speedValueText);
+            window.draw(optionsHelpText);
         }
         else if (gameState == GameState::SONG_SELECTION)
         {
@@ -649,6 +911,7 @@ int main()
             for(const auto& text : difficultyTexts) {
                 window.draw(text);
             }
+            window.draw(difficultyHighScoreText);
         }
         else if (gameState == GameState::PLAYING)
         {
@@ -701,7 +964,10 @@ int main()
             window.draw(perfectCountText);
             window.draw(greatCountText);
             window.draw(missCountText);
-            window.draw(continueText);
+            window.draw(newRecordText);
+            for(const auto& text : resultsMenuTexts) {
+                window.draw(text);
+            }
         }
         
         window.display();
