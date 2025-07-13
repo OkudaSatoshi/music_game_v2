@@ -15,11 +15,11 @@
 using json = nlohmann::json;
 
 // --- 定数定義 ---
-const int WINDOW_WIDTH = 800;
-const int WINDOW_HEIGHT = 600;
+const int WINDOW_WIDTH = 1920;
+const int WINDOW_HEIGHT = 1080;
 const int LANE_COUNT = 6;
-const float LANE_WIDTH = 50.f;
-const float NOTE_HEIGHT = 20.f;
+const float LANE_WIDTH = 80.f; // 50から変更
+const float NOTE_HEIGHT = 30.f; // 20から変更
 const float LANE_AREA_WIDTH = LANE_COUNT * LANE_WIDTH;
 const float LANE_START_X = (WINDOW_WIDTH - LANE_AREA_WIDTH) / 2.f;
 const float JUDGMENT_LINE_Y = WINDOW_HEIGHT - 100.f;
@@ -77,6 +77,7 @@ struct SongData
 {
     std::string title;
     std::string audioPath;
+    std::string backgroundPath; // 背景画像パスを追加
     std::vector<ChartData> charts;
 };
 
@@ -229,6 +230,11 @@ int main()
             SongData song_data;
             song_data.title = song_json.at("title").get<std::string>();
             song_data.audioPath = song_json.at("audio_path").get<std::string>();
+            if (song_json.contains("background_path")) {
+                song_data.backgroundPath = song_json.at("background_path").get<std::string>();
+            } else {
+                song_data.backgroundPath = ""; // パスがなければ空文字
+            }
             for (const auto& chart_json : song_json.at("charts"))
             {
                 ChartData chart_data;
@@ -257,136 +263,136 @@ int main()
 
     // --- UI要素の準備 ---
     // タイトル画面
-    sf::Text titleText("Sound Game", font, 80);
+    sf::Text titleText("Sound Game", font, 120); // 80 -> 120
     sf::FloatRect textRect = titleText.getLocalBounds();
     titleText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-    titleText.setPosition(WINDOW_WIDTH / 2.0f, 200.f);
+    titleText.setPosition(WINDOW_WIDTH / 2.0f, 350.f); // 200 -> 350
 
     std::vector<sf::Text> titleMenuTexts(2);
     std::vector<std::string> titleMenuStrings = {"Start Game", "Options"};
     for(size_t i = 0; i < titleMenuTexts.size(); ++i) {
         titleMenuTexts[i].setFont(font);
-        titleMenuTexts[i].setCharacterSize(32);
+        titleMenuTexts[i].setCharacterSize(50); // 32 -> 50
         titleMenuTexts[i].setString(titleMenuStrings[i]);
         textRect = titleMenuTexts[i].getLocalBounds();
         titleMenuTexts[i].setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-        titleMenuTexts[i].setPosition(WINDOW_WIDTH / 2.0f, 400.f + i * 60.f);
+        titleMenuTexts[i].setPosition(WINDOW_WIDTH / 2.0f, 650.f + i * 80.f); // 400, 60 -> 650, 80
     }
 
     // 曲選択画面
-    sf::Text songSelectionTitle("Select a Song", font, 50);
+    sf::Text songSelectionTitle("Select a Song", font, 80); // 50 -> 80
     textRect = songSelectionTitle.getLocalBounds();
     songSelectionTitle.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-    songSelectionTitle.setPosition(WINDOW_WIDTH / 2.0f, 80.f);
+    songSelectionTitle.setPosition(WINDOW_WIDTH / 2.0f, 150.f); // 80 -> 150
     std::vector<sf::Text> songTitleTexts(songs.size());
     for(size_t i = 0; i < songs.size(); ++i) {
         songTitleTexts[i].setFont(font);
-        songTitleTexts[i].setCharacterSize(32);
+        songTitleTexts[i].setCharacterSize(50); // 32 -> 50
         songTitleTexts[i].setString(songs[i].title);
         textRect = songTitleTexts[i].getLocalBounds();
         songTitleTexts[i].setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-        songTitleTexts[i].setPosition(WINDOW_WIDTH / 2.0f, 200.f + i * 60.f);
+        songTitleTexts[i].setPosition(WINDOW_WIDTH / 2.0f, 350.f + i * 80.f); // 200, 60 -> 350, 80
     }
 
     // 難易度選択画面
-    sf::Text difficultySelectionTitle("", font, 50);
+    sf::Text difficultySelectionTitle("", font, 80); // 50 -> 80
     std::vector<sf::Text> difficultyTexts;
-    sf::Text difficultyHighScoreText("", scoreFont, 28);
+    sf::Text difficultyHighScoreText("", scoreFont, 42); // 28 -> 42
     difficultyHighScoreText.setFillColor(sf::Color(255, 255, 100)); // Light Yellow
 
     // オプション画面
-    sf::Text optionsTitle("Options", font, 60);
+    sf::Text optionsTitle("Options", font, 90); // 60 -> 90
     textRect = optionsTitle.getLocalBounds();
     optionsTitle.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-    optionsTitle.setPosition(WINDOW_WIDTH / 2.0f, 100.f);
+    optionsTitle.setPosition(WINDOW_WIDTH / 2.0f, 200.f); // 100 -> 200
 
     std::vector<sf::Text> optionMenuTexts(3);
     std::vector<std::string> optionMenuStrings = {"Note Speed", "BGM Volume", "SFX Volume"};
     for(size_t i = 0; i < optionMenuTexts.size(); ++i) {
         optionMenuTexts[i].setFont(font);
-        optionMenuTexts[i].setCharacterSize(32);
+        optionMenuTexts[i].setCharacterSize(50); // 32 -> 50
         optionMenuTexts[i].setString(optionMenuStrings[i]);
-        optionMenuTexts[i].setPosition(WINDOW_WIDTH / 2.0f - 250.f, 250.f + i * 80.f);
+        optionMenuTexts[i].setPosition(WINDOW_WIDTH / 2.0f - 400.f, 400.f + i * 100.f); // 250, 80 -> 400, 100
     }
 
     std::vector<sf::Text> optionValueTexts(3);
     for(size_t i = 0; i < optionValueTexts.size(); ++i) {
         optionValueTexts[i].setFont(font);
-        optionValueTexts[i].setCharacterSize(32);
+        optionValueTexts[i].setCharacterSize(50); // 32 -> 50
         optionValueTexts[i].setFillColor(sf::Color::Yellow);
     }
 
-    sf::Text optionsHelpText("Up/Down to select, Left/Right to change, Enter to save", font, 24);
+    sf::Text optionsHelpText("Up/Down to select, Left/Right to change, Enter to save", font, 36); // 24 -> 36
     textRect = optionsHelpText.getLocalBounds();
     optionsHelpText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-    optionsHelpText.setPosition(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 100.f);
+    optionsHelpText.setPosition(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 150.f); // 100 -> 150
 
     // ポーズ画面
     sf::RectangleShape pauseOverlay(sf::Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
     pauseOverlay.setFillColor(sf::Color(0, 0, 0, 150)); // 半透明の黒
-    sf::Text pauseTitle("PAUSED", font, 60);
+    sf::Text pauseTitle("PAUSED", font, 90); // 60 -> 90
     textRect = pauseTitle.getLocalBounds();
     pauseTitle.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-    pauseTitle.setPosition(WINDOW_WIDTH / 2.0f, 150.f);
+    pauseTitle.setPosition(WINDOW_WIDTH / 2.0f, 300.f); // 150 -> 300
 
     std::vector<sf::Text> pauseMenuTexts(3);
     std::vector<std::string> pauseMenuStrings = {"Resume", "Retry", "Back to Select"};
     for(size_t i = 0; i < pauseMenuTexts.size(); ++i) {
         pauseMenuTexts[i].setFont(font);
-        pauseMenuTexts[i].setCharacterSize(32);
+        pauseMenuTexts[i].setCharacterSize(50); // 32 -> 50
         pauseMenuTexts[i].setString(pauseMenuStrings[i]);
         textRect = pauseMenuTexts[i].getLocalBounds();
         pauseMenuTexts[i].setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-        pauseMenuTexts[i].setPosition(WINDOW_WIDTH / 2.0f, 280.f + i * 60.f);
+        pauseMenuTexts[i].setPosition(WINDOW_WIDTH / 2.0f, 500.f + i * 80.f); // 280, 60 -> 500, 80
     }
 
     // ゲームプレイ画面
-    sf::Text scoreText("", scoreFont, 30);
-    scoreText.setPosition(10, 10);
+    sf::Text scoreText("", scoreFont, 48); // 30 -> 48
+    scoreText.setPosition(20, 20); // 10, 10 -> 20, 20
     scoreText.setOutlineColor(sf::Color::Black);
     scoreText.setOutlineThickness(2.f);
 
-    sf::Text comboText("", font, 48);
-    sf::Text judgmentText("", font, 36);
+    sf::Text comboText("", font, 72); // 48 -> 72
+    sf::Text judgmentText("", font, 54); // 36 -> 54
     sf::Clock judgmentClock;
 
     // リザルト画面
-    sf::Text resultsTitle("Results", scoreFont, 60);
+    sf::Text resultsTitle("Results", scoreFont, 90); // 60 -> 90
     resultsTitle.setOutlineColor(sf::Color::Black);
     resultsTitle.setOutlineThickness(2.f);
     textRect = resultsTitle.getLocalBounds();
     resultsTitle.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-    resultsTitle.setPosition(WINDOW_WIDTH / 2.0f, 100.f);
+    resultsTitle.setPosition(WINDOW_WIDTH / 2.0f, 150.f); // 100 -> 150
 
-    sf::Text finalScoreText("", scoreFont, 40);
+    sf::Text finalScoreText("", scoreFont, 60); // 40 -> 60
     finalScoreText.setOutlineColor(sf::Color::Black);
     finalScoreText.setOutlineThickness(2.f);
 
-    sf::Text maxComboText("", scoreFont, 40);
+    sf::Text maxComboText("", scoreFont, 60); // 40 -> 60
     maxComboText.setOutlineColor(sf::Color::Black);
     maxComboText.setOutlineThickness(2.f);
 
-    sf::Text perfectCountText("", scoreFont, 32);
+    sf::Text perfectCountText("", scoreFont, 50); // 32 -> 50
     perfectCountText.setOutlineColor(sf::Color::Black);
     perfectCountText.setOutlineThickness(2.f);
     perfectCountText.setFillColor(sf::Color::Cyan);
 
-    sf::Text greatCountText("", scoreFont, 32);
+    sf::Text greatCountText("", scoreFont, 50); // 32 -> 50
     greatCountText.setOutlineColor(sf::Color::Black);
     greatCountText.setOutlineThickness(2.f);
     greatCountText.setFillColor(sf::Color::Yellow);
 
-    sf::Text missCountText("", scoreFont, 32);
+    sf::Text missCountText("", scoreFont, 50); // 32 -> 50
     missCountText.setOutlineColor(sf::Color::Black);
     missCountText.setOutlineThickness(2.f);
     missCountText.setFillColor(sf::Color::Red);
 
-    sf::Text newRecordText("", scoreFont, 40);
+    sf::Text newRecordText("", scoreFont, 60); // 40 -> 60
     newRecordText.setOutlineColor(sf::Color::Black);
     newRecordText.setOutlineThickness(2.f);
     newRecordText.setFillColor(sf::Color::Yellow);
 
-    sf::Text rankText("", rankFont, 150);
+    sf::Text rankText("", rankFont, 220); // 150 -> 220
     rankText.setOutlineColor(sf::Color::Black);
     rankText.setOutlineThickness(4.f);
 
@@ -394,7 +400,7 @@ int main()
     std::vector<std::string> resultsMenuStrings = {"Retry", "Back to Select"};
     for(size_t i = 0; i < resultsMenuTexts.size(); ++i) {
         resultsMenuTexts[i].setFont(scoreFont); // フォントを変更
-        resultsMenuTexts[i].setCharacterSize(32);
+        resultsMenuTexts[i].setCharacterSize(50); // 32 -> 50
         resultsMenuTexts[i].setString(resultsMenuStrings[i]);
         resultsMenuTexts[i].setOutlineColor(sf::Color::Black);
         resultsMenuTexts[i].setOutlineThickness(2.f);
@@ -402,7 +408,7 @@ int main()
         resultsMenuTexts[i].setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
         // 横並びのレイアウトに変更
         float xPos = (WINDOW_WIDTH / (resultsMenuTexts.size() + 1.0f)) * (i + 1.0f);
-        resultsMenuTexts[i].setPosition(xPos, WINDOW_HEIGHT - 100.f);
+        resultsMenuTexts[i].setPosition(xPos, WINDOW_HEIGHT - 150.f); // 100 -> 150
     }
 
 
@@ -429,6 +435,7 @@ int main()
     std::vector<Note> activeNotes;
     std::vector<Note> chart;
     sf::Music music;
+    sf::Music menuMusic;
     size_t selectedSongIndex = 0;
     size_t selectedDifficultyIndex = 0;
     size_t selectedPauseMenuIndex = 0;
@@ -437,6 +444,13 @@ int main()
     size_t selectedOptionsMenuIndex = 0;
 
     std::vector<sf::Clock> laneFlashClocks(LANE_COUNT);
+
+    // --- メニューBGMの再生開始 ---
+    if (menuMusic.openFromFile("audio/Speder2_BellFlower.ogg")) {
+        menuMusic.setLoop(true);
+        menuMusic.setVolume(config.bgmVolume);
+        menuMusic.play();
+    }
 
     // --- ゲームループ ---
     while (window.isOpen())
@@ -475,6 +489,7 @@ int main()
                             config.noteSpeedMultiplier = std::min(5.0f, config.noteSpeedMultiplier + 0.1f);
                         } else if (selectedOptionsMenuIndex == 1) { // BGM Volume
                             config.bgmVolume = std::min(100.0f, config.bgmVolume + 5.0f);
+                            menuMusic.setVolume(config.bgmVolume);
                         } else if (selectedOptionsMenuIndex == 2) { // SFX Volume
                             config.sfxVolume = std::min(100.0f, config.sfxVolume + 5.0f);
                             tapSound.setVolume(config.sfxVolume);
@@ -485,6 +500,7 @@ int main()
                             config.noteSpeedMultiplier = std::max(0.1f, config.noteSpeedMultiplier - 0.1f);
                         } else if (selectedOptionsMenuIndex == 1) { // BGM Volume
                             config.bgmVolume = std::max(0.0f, config.bgmVolume - 5.0f);
+                            menuMusic.setVolume(config.bgmVolume);
                         } else if (selectedOptionsMenuIndex == 2) { // SFX Volume
                             config.sfxVolume = std::max(0.0f, config.sfxVolume - 5.0f);
                             tapSound.setVolume(config.sfxVolume);
@@ -518,17 +534,17 @@ int main()
                         difficultySelectionTitle.setString(selectedSong.title);
                         sf::FloatRect textRect = difficultySelectionTitle.getLocalBounds();
                         difficultySelectionTitle.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-                        difficultySelectionTitle.setPosition(WINDOW_WIDTH / 2.0f, 80.f);
+                        difficultySelectionTitle.setPosition(WINDOW_WIDTH / 2.0f, 150.f); // 80 -> 150
 
                         difficultyTexts.clear();
                         for(size_t i = 0; i < selectedSong.charts.size(); ++i) {
                             sf::Text diffText;
                             diffText.setFont(font);
-                            diffText.setCharacterSize(32);
+                            diffText.setCharacterSize(50); // 32 -> 50
                             diffText.setString(selectedSong.charts[i].difficultyName);
                             textRect = diffText.getLocalBounds();
                             diffText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-                            diffText.setPosition(WINDOW_WIDTH / 2.0f, 200.f + i * 60.f);
+                            diffText.setPosition(WINDOW_WIDTH / 2.0f, 350.f + i * 80.f); // 200, 60 -> 350, 80
                             difficultyTexts.push_back(diffText);
                         }
                     }
@@ -556,11 +572,19 @@ int main()
                         const auto& selectedSong = songs[selectedSongIndex];
                         const auto& selectedChart = selectedSong.charts[selectedDifficultyIndex];
 
+                        // 背景の更新
+                        if (!selectedSong.backgroundPath.empty() && !backgroundTexture.loadFromFile(selectedSong.backgroundPath)) {
+                            // 読み込み失敗時はデフォルトにフォールバック
+                            backgroundTexture.loadFromFile("img/nasturtium.jpg");
+                        }
+                        backgroundSprite.setTexture(backgroundTexture, true);
+
                         if (!music.openFromFile(selectedSong.audioPath)) { return -1; }
                         music.setVolume(config.bgmVolume);
                         chart = loadChartFromMidi(selectedChart.chartPath);
                         if (chart.empty()) { return -1; }
 
+                        menuMusic.stop(); // メニューBGMを停止
                         gameState = GameState::PLAYING;
                         score = 0;
                         combo = 0;
@@ -680,6 +704,7 @@ int main()
                         {
                             gameState = GameState::SONG_SELECTION;
                             music.stop();
+                            if (menuMusic.getStatus() != sf::Music::Playing) menuMusic.play();
                         }
                     }
                     else if (event.key.code == sf::Keyboard::Escape)
@@ -712,6 +737,7 @@ int main()
                             music.play();
                         } else if (selectedResultsMenuIndex == 1) { // Back to Select
                             gameState = GameState::SONG_SELECTION;
+                            if (menuMusic.getStatus() != sf::Music::Playing) menuMusic.play();
                         }
                     }
                 }
@@ -757,7 +783,7 @@ int main()
             for(size_t i = 0; i < optionValueTexts.size(); ++i) {
                 textRect = optionValueTexts[i].getLocalBounds();
                 optionValueTexts[i].setOrigin(textRect.left + textRect.width, textRect.top);
-                optionValueTexts[i].setPosition(optionMenuTexts[i].getPosition().x + 450.f, optionMenuTexts[i].getPosition().y);
+                optionValueTexts[i].setPosition(optionMenuTexts[i].getPosition().x + 800.f, optionMenuTexts[i].getPosition().y); // 450 -> 800
             }
         }
         else if (gameState == GameState::SONG_SELECTION)
@@ -796,7 +822,7 @@ int main()
             difficultyHighScoreText.setString("High Score: " + std::to_string(highScore));
             textRect = difficultyHighScoreText.getLocalBounds();
             difficultyHighScoreText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-            difficultyHighScoreText.setPosition(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 150.f);
+            difficultyHighScoreText.setPosition(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 200.f); // 150 -> 200
         }
         else if (gameState == GameState::PAUSED)
         {
@@ -879,13 +905,13 @@ int main()
                 comboText.setString(std::to_string(combo));
                 if (combo >= 20) { // 100から変更
                     comboText.setFillColor(sf::Color::Magenta);
-                    comboText.setCharacterSize(52);
+                    comboText.setCharacterSize(80); // 52 -> 80
                 } else if (combo >= 10) { // 50から変更
                     comboText.setFillColor(sf::Color(255, 165, 0)); // Orange
-                    comboText.setCharacterSize(48);
+                    comboText.setCharacterSize(76); // 48 -> 76
                 } else {
                     comboText.setFillColor(sf::Color::White);
-                    comboText.setCharacterSize(44);
+                    comboText.setCharacterSize(72); // 44 -> 72
                 }
                 sf::FloatRect textRect = comboText.getLocalBounds();
                 comboText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
@@ -928,32 +954,32 @@ int main()
                 // Score and Max Combo (centered)
                 textRect = finalScoreText.getLocalBounds();
                 finalScoreText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-                finalScoreText.setPosition(WINDOW_WIDTH / 2.0f, 250.f);
+                finalScoreText.setPosition(WINDOW_WIDTH / 2.0f, 400.f); // 250 -> 400
 
                 textRect = maxComboText.getLocalBounds();
                 maxComboText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-                maxComboText.setPosition(WINDOW_WIDTH / 2.0f, 320.f);
+                maxComboText.setPosition(WINDOW_WIDTH / 2.0f, 500.f); // 320 -> 500
 
                 // Judgment counts (horizontal layout)
-                const float countsY = 420.f;
+                const float countsY = 650.f; // 420 -> 650
                 
                 textRect = perfectCountText.getLocalBounds();
                 perfectCountText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-                perfectCountText.setPosition(WINDOW_WIDTH / 4.0f, countsY);
+                perfectCountText.setPosition(WINDOW_WIDTH * 0.3f, countsY); // 0.25 -> 0.3
 
                 textRect = greatCountText.getLocalBounds();
                 greatCountText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-                greatCountText.setPosition(WINDOW_WIDTH / 2.0f, countsY);
+                greatCountText.setPosition(WINDOW_WIDTH * 0.5f, countsY); // 0.5 (center)
 
                 textRect = missCountText.getLocalBounds();
                 missCountText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-                missCountText.setPosition(WINDOW_WIDTH * 3.0f / 4.0f, countsY);
+                missCountText.setPosition(WINDOW_WIDTH * 0.7f, countsY); // 0.75 -> 0.7
 
                 if (isNewRecord) {
                     newRecordText.setString("NEW RECORD!");
                     textRect = newRecordText.getLocalBounds();
                     newRecordText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-                    newRecordText.setPosition(WINDOW_WIDTH / 2.0f, 180.f);
+                    newRecordText.setPosition(WINDOW_WIDTH / 2.0f, 280.f); // 180 -> 280
                 } else {
                     newRecordText.setString(""); // 新記録でなければ何も表示しない
                 }
@@ -973,7 +999,7 @@ int main()
                 rankText.setFillColor(rankColor);
                 textRect = rankText.getLocalBounds();
                 rankText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-                rankText.setPosition(WINDOW_WIDTH * 0.75f, 150.f);
+                rankText.setPosition(WINDOW_WIDTH * 0.8f, 250.f); // 0.75, 150 -> 0.8, 250
             }
         }
 
