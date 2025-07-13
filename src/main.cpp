@@ -118,6 +118,8 @@ void saveHighScores(const std::map<std::string, int>& highScores) {
 
 struct GameConfig {
     float noteSpeedMultiplier = 1.0f;
+    float bgmVolume = 100.0f;
+    float sfxVolume = 100.0f;
 };
 
 // config.json から設定を読み込む
@@ -128,7 +130,13 @@ GameConfig loadConfig() {
         try {
             json configJson = json::parse(ifs);
             if (configJson.contains("note_speed_multiplier")) {
-                config.noteSpeedMultiplier = configJson["note_speed_multiplier"];
+                config.noteSpeedMultiplier = configJson["note_speed_multiplier"].get<float>();
+            }
+            if (configJson.contains("bgm_volume")) {
+                config.bgmVolume = configJson["bgm_volume"].get<float>();
+            }
+            if (configJson.contains("sfx_volume")) {
+                config.sfxVolume = configJson["sfx_volume"].get<float>();
             }
         } catch (const json::parse_error& e) {
             // パースエラーが起きても、デフォルト設定でゲームを続行
@@ -141,6 +149,8 @@ GameConfig loadConfig() {
 void saveConfig(const GameConfig& config) {
     json configJson;
     configJson["note_speed_multiplier"] = config.noteSpeedMultiplier;
+    configJson["bgm_volume"] = config.bgmVolume;
+    configJson["sfx_volume"] = config.sfxVolume;
     std::ofstream ofs("config.json");
     ofs << std::setw(4) << configJson << std::endl;
 }
@@ -190,6 +200,8 @@ int main()
     if (!font.loadFromFile("Kazesawa-ExtraLight.ttf")) { return -1; }
     sf::Font scoreFont;
     if (!scoreFont.loadFromFile("Evogria.otf")) { return -1; }
+    sf::Font rankFont;
+    if (!rankFont.loadFromFile("Evogria_Italic.otf")) { return -1; }
 
     sf::Texture backgroundTexture;
     if (!backgroundTexture.loadFromFile("img/nasturtium.jpg")) { return -1; }
@@ -240,6 +252,9 @@ int main()
     // --- 設定をJSONから読み込み ---
     auto config = loadConfig();
 
+    // --- 初期音量の設定 ---
+    tapSound.setVolume(config.sfxVolume);
+
     // --- UI要素の準備 ---
     // タイトル画面
     sf::Text titleText("Sound Game", font, 80);
@@ -283,15 +298,25 @@ int main()
     sf::Text optionsTitle("Options", font, 60);
     textRect = optionsTitle.getLocalBounds();
     optionsTitle.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-    optionsTitle.setPosition(WINDOW_WIDTH / 2.0f, 150.f);
+    optionsTitle.setPosition(WINDOW_WIDTH / 2.0f, 100.f);
 
-    sf::Text speedOptionText("Note Speed", font, 32);
-    speedOptionText.setPosition(WINDOW_WIDTH / 2.0f - 200.f, 300.f);
+    std::vector<sf::Text> optionMenuTexts(3);
+    std::vector<std::string> optionMenuStrings = {"Note Speed", "BGM Volume", "SFX Volume"};
+    for(size_t i = 0; i < optionMenuTexts.size(); ++i) {
+        optionMenuTexts[i].setFont(font);
+        optionMenuTexts[i].setCharacterSize(32);
+        optionMenuTexts[i].setString(optionMenuStrings[i]);
+        optionMenuTexts[i].setPosition(WINDOW_WIDTH / 2.0f - 250.f, 250.f + i * 80.f);
+    }
 
-    sf::Text speedValueText("", font, 32);
-    speedValueText.setFillColor(sf::Color::Yellow);
+    std::vector<sf::Text> optionValueTexts(3);
+    for(size_t i = 0; i < optionValueTexts.size(); ++i) {
+        optionValueTexts[i].setFont(font);
+        optionValueTexts[i].setCharacterSize(32);
+        optionValueTexts[i].setFillColor(sf::Color::Yellow);
+    }
 
-    sf::Text optionsHelpText("Left/Right to change, Enter to save and exit", font, 24);
+    sf::Text optionsHelpText("Up/Down to select, Left/Right to change, Enter to save", font, 24);
     textRect = optionsHelpText.getLocalBounds();
     optionsHelpText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
     optionsHelpText.setPosition(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 100.f);
@@ -361,6 +386,10 @@ int main()
     newRecordText.setOutlineThickness(2.f);
     newRecordText.setFillColor(sf::Color::Yellow);
 
+    sf::Text rankText("", rankFont, 150);
+    rankText.setOutlineColor(sf::Color::Black);
+    rankText.setOutlineThickness(4.f);
+
     std::vector<sf::Text> resultsMenuTexts(2);
     std::vector<std::string> resultsMenuStrings = {"Retry", "Back to Select"};
     for(size_t i = 0; i < resultsMenuTexts.size(); ++i) {
@@ -405,6 +434,7 @@ int main()
     size_t selectedPauseMenuIndex = 0;
     size_t selectedTitleMenuIndex = 0;
     size_t selectedResultsMenuIndex = 0;
+    size_t selectedOptionsMenuIndex = 0;
 
     std::vector<sf::Clock> laneFlashClocks(LANE_COUNT);
 
@@ -436,12 +466,30 @@ int main()
             else if (gameState == GameState::OPTIONS)
             {
                 if (event.type == sf::Event::KeyPressed) {
-                    if (event.key.code == sf::Keyboard::Right) {
-                        config.noteSpeedMultiplier += 0.1f;
-                        if (config.noteSpeedMultiplier > 5.0f) config.noteSpeedMultiplier = 5.0f;
+                    if (event.key.code == sf::Keyboard::Up) {
+                        selectedOptionsMenuIndex = (selectedOptionsMenuIndex + optionMenuTexts.size() - 1) % optionMenuTexts.size();
+                    } else if (event.key.code == sf::Keyboard::Down) {
+                        selectedOptionsMenuIndex = (selectedOptionsMenuIndex + 1) % optionMenuTexts.size();
+                    } else if (event.key.code == sf::Keyboard::Right) {
+                        if (selectedOptionsMenuIndex == 0) { // Note Speed
+                            config.noteSpeedMultiplier = std::min(5.0f, config.noteSpeedMultiplier + 0.1f);
+                        } else if (selectedOptionsMenuIndex == 1) { // BGM Volume
+                            config.bgmVolume = std::min(100.0f, config.bgmVolume + 5.0f);
+                        } else if (selectedOptionsMenuIndex == 2) { // SFX Volume
+                            config.sfxVolume = std::min(100.0f, config.sfxVolume + 5.0f);
+                            tapSound.setVolume(config.sfxVolume);
+                            tapSound.play();
+                        }
                     } else if (event.key.code == sf::Keyboard::Left) {
-                        config.noteSpeedMultiplier -= 0.1f;
-                        if (config.noteSpeedMultiplier < 0.1f) config.noteSpeedMultiplier = 0.1f;
+                        if (selectedOptionsMenuIndex == 0) { // Note Speed
+                            config.noteSpeedMultiplier = std::max(0.1f, config.noteSpeedMultiplier - 0.1f);
+                        } else if (selectedOptionsMenuIndex == 1) { // BGM Volume
+                            config.bgmVolume = std::max(0.0f, config.bgmVolume - 5.0f);
+                        } else if (selectedOptionsMenuIndex == 2) { // SFX Volume
+                            config.sfxVolume = std::max(0.0f, config.sfxVolume - 5.0f);
+                            tapSound.setVolume(config.sfxVolume);
+                            tapSound.play();
+                        }
                     } else if (event.key.code == sf::Keyboard::Enter || event.key.code == sf::Keyboard::Escape) {
                         saveConfig(config);
                         gameState = GameState::TITLE;
@@ -509,6 +557,7 @@ int main()
                         const auto& selectedChart = selectedSong.charts[selectedDifficultyIndex];
 
                         if (!music.openFromFile(selectedSong.audioPath)) { return -1; }
+                        music.setVolume(config.bgmVolume);
                         chart = loadChartFromMidi(selectedChart.chartPath);
                         if (chart.empty()) { return -1; }
 
@@ -624,6 +673,7 @@ int main()
                             nextNoteIndex = 0;
                             activeNotes.clear();
                             music.stop();
+                            music.setVolume(config.bgmVolume);
                             music.play();
                         }
                         else if (selectedPauseMenuIndex == 2) // Back to Select
@@ -658,6 +708,7 @@ int main()
                             nextNoteIndex = 0;
                             activeNotes.clear();
                             music.stop();
+                            music.setVolume(config.bgmVolume);
                             music.play();
                         } else if (selectedResultsMenuIndex == 1) { // Back to Select
                             gameState = GameState::SONG_SELECTION;
@@ -684,12 +735,30 @@ int main()
         }
         else if (gameState == GameState::OPTIONS)
         {
-            std::stringstream ss;
-            ss << std::fixed << std::setprecision(1) << config.noteSpeedMultiplier;
-            speedValueText.setString(ss.str());
-            textRect = speedValueText.getLocalBounds();
-            speedValueText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-            speedValueText.setPosition(speedOptionText.getPosition().x + 300.f, speedOptionText.getPosition().y + 20.f);
+            for(size_t i = 0; i < optionMenuTexts.size(); ++i) {
+                if (i == selectedOptionsMenuIndex) {
+                    optionMenuTexts[i].setFillColor(sf::Color::Yellow);
+                } else {
+                    optionMenuTexts[i].setFillColor(sf::Color::White);
+                }
+            }
+
+            // 値のテキストを更新
+            std::stringstream ss_speed, ss_bgm, ss_sfx;
+            ss_speed << std::fixed << std::setprecision(1) << config.noteSpeedMultiplier;
+            optionValueTexts[0].setString(ss_speed.str());
+
+            ss_bgm << std::fixed << std::setprecision(0) << config.bgmVolume;
+            optionValueTexts[1].setString(ss_bgm.str());
+
+            ss_sfx << std::fixed << std::setprecision(0) << config.sfxVolume;
+            optionValueTexts[2].setString(ss_sfx.str());
+
+            for(size_t i = 0; i < optionValueTexts.size(); ++i) {
+                textRect = optionValueTexts[i].getLocalBounds();
+                optionValueTexts[i].setOrigin(textRect.left + textRect.width, textRect.top);
+                optionValueTexts[i].setPosition(optionMenuTexts[i].getPosition().x + 450.f, optionMenuTexts[i].getPosition().y);
+            }
         }
         else if (gameState == GameState::SONG_SELECTION)
         {
@@ -808,6 +877,16 @@ int main()
             scoreText.setString("Score: " + std::to_string(score));
             if (combo > 2) {
                 comboText.setString(std::to_string(combo));
+                if (combo >= 20) { // 100から変更
+                    comboText.setFillColor(sf::Color::Magenta);
+                    comboText.setCharacterSize(52);
+                } else if (combo >= 10) { // 50から変更
+                    comboText.setFillColor(sf::Color(255, 165, 0)); // Orange
+                    comboText.setCharacterSize(48);
+                } else {
+                    comboText.setFillColor(sf::Color::White);
+                    comboText.setCharacterSize(44);
+                }
                 sf::FloatRect textRect = comboText.getLocalBounds();
                 comboText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
                 comboText.setPosition(LANE_START_X + LANE_AREA_WIDTH / 2.f, JUDGMENT_LINE_Y - 50.f);
@@ -878,6 +957,23 @@ int main()
                 } else {
                     newRecordText.setString(""); // 新記録でなければ何も表示しない
                 }
+
+                // ランク計算
+                int maxScore = chart.size() * 100;
+                float scoreRatio = (maxScore > 0) ? static_cast<float>(score) / maxScore : 0.0f;
+                std::string rankString;
+                sf::Color rankColor;
+                if (scoreRatio >= 0.95f)      { rankString = "S"; rankColor = sf::Color(255, 215, 0); } // Gold
+                else if (scoreRatio >= 0.90f) { rankString = "A"; rankColor = sf::Color::Yellow; }
+                else if (scoreRatio >= 0.80f) { rankString = "B"; rankColor = sf::Color::Cyan; }
+                else if (scoreRatio >= 0.70f) { rankString = "C"; rankColor = sf::Color::Green; }
+                else                          { rankString = "D"; rankColor = sf::Color::White; }
+
+                rankText.setString(rankString);
+                rankText.setFillColor(rankColor);
+                textRect = rankText.getLocalBounds();
+                rankText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
+                rankText.setPosition(WINDOW_WIDTH * 0.75f, 150.f);
             }
         }
 
@@ -894,8 +990,12 @@ int main()
         else if (gameState == GameState::OPTIONS)
         {
             window.draw(optionsTitle);
-            window.draw(speedOptionText);
-            window.draw(speedValueText);
+            for(const auto& text : optionMenuTexts) {
+                window.draw(text);
+            }
+            for(const auto& text : optionValueTexts) {
+                window.draw(text);
+            }
             window.draw(optionsHelpText);
         }
         else if (gameState == GameState::SONG_SELECTION)
@@ -965,6 +1065,7 @@ int main()
             window.draw(greatCountText);
             window.draw(missCountText);
             window.draw(newRecordText);
+            window.draw(rankText);
             for(const auto& text : resultsMenuTexts) {
                 window.draw(text);
             }
