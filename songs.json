@@ -2,6 +2,7 @@
   {
     "title": "Test",
     "audio_path": "audio/test.ogg",
+    "background_path": "img/test.png",
     "charts": [
       {
         "difficulty": "NORMAL",
@@ -11,7 +12,8 @@
   },
   {
     "title": "Nasturtium",
-    "audio_path": "audio/Nasturtium.ogg",
+    "audio_path": "audio/Nasturtium.wav",
+    "background_path": "img/nasturtium.jpg",
     "charts": [
       {
         "difficulty": "EASY",
