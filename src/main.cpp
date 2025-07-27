@@ -204,7 +204,7 @@ int main()
     pauseTitle.setPosition(WINDOW_WIDTH / 2.0f, 300.f); // 150 -> 300
 
     std::vector<sf::Text> pauseMenuTexts(3);
-    std::vector<std::string> pauseMenuStrings = {"Resume", "Retry", "Back to Select"};
+    std::vector<std::string> pauseMenuStrings = {"Continue", "Retry", "Back to Select"};
     for(size_t i = 0; i < pauseMenuTexts.size(); ++i) {
         pauseMenuTexts[i].setFont(font);
         pauseMenuTexts[i].setCharacterSize(50); // 32 -> 50
@@ -498,7 +498,7 @@ int main()
                         // 背景の更新
                         if (!selectedSong.backgroundPath.empty() && !backgroundTexture.loadFromFile(selectedSong.backgroundPath)) {
                             // 読み込み失敗時はデフォルトにフォールバック
-                            backgroundTexture.loadFromFile("img/nasturtium.jpg");
+                            backgroundTexture.loadFromFile("img/default.jpg");
                         }
                         backgroundSprite.setTexture(backgroundTexture, true);
 
