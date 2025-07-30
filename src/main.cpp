@@ -54,7 +54,7 @@ int main()
     if (!rankFont.loadFromFile("Evogria_Italic.otf")) { return -1; }
 
     sf::Texture titleBackgroundTexture;
-    if (!titleBackgroundTexture.loadFromFile("img/title.png")) { return -1; }
+    if (!titleBackgroundTexture.loadFromFile("img/title.jpg")) { return -1; }
     sf::Sprite titleBackgroundSprite;
     titleBackgroundSprite.setTexture(titleBackgroundTexture);
 
@@ -351,7 +351,7 @@ int main()
     std::vector<Particle> particles;
 
     // --- メニューBGMの再生開始 ---
-    if (menuMusic.openFromFile("audio/Speder2_BellFlower.ogg")) {
+    if (menuMusic.openFromFile("audio/title.ogg")) {
         menuMusic.setLoop(true);
         menuMusic.setVolume(config.bgmVolume);
         menuMusic.play();
