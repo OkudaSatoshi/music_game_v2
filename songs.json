@@ -1,0 +1,32 @@
+[
+  {
+    "title": "Test",
+    "audio_path": "audio/test.ogg",
+    "background_path": "img/test.png",
+    "charts": [
+      {
+        "difficulty": "NORMAL",
+        "chart_path": "midi/test.mid"
+      }
+    ]
+  },
+  {
+    "title": "Nasturtium",
+    "audio_path": "audio/Nasturtium.wav",
+    "background_path": "img/nasturtium.jpg",
+    "charts": [
+      {
+        "difficulty": "EASY",
+        "chart_path": "midi/NasturtiumEasy.mid"
+      },
+      {
+        "difficulty": "NORMAL",
+        "chart_path": "midi/NasturtiumNormal.mid"
+      },
+      {
+        "difficulty": "HARD",
+        "chart_path": "midi/NasturtiumHard.mid"
+      }
+    ]
+  }
+]
