@@ -86,15 +86,20 @@ std::vector<Note> loadChartFromMidi(const std::string& path) {
         return {}; // 読み込み失敗
     }
 
+    // 時間解析を行い、ティックを秒に変換する準備をする
     midiFile.doTimeAnalysis();
+    // 全てのトラックをトラック0にマージして、イベントを時系列に並べる
+    midiFile.joinTracks();
 
     std::vector<Note> chart;
-    for (int track = 0; track < midiFile.getTrackCount(); ++track) {
-        for (int event = 0; event < midiFile[track].size(); ++event) {
-            if (midiFile[track][event].isNoteOn()) {
+    // マージされたトラックは1つだけ (トラック0)
+    if (midiFile.getTrackCount() > 0) {
+        for (int event = 0; event < midiFile[0].size(); ++event) {
+            if (midiFile[0][event].isNoteOn()) {
                 Note newNote;
-                newNote.spawnTime = midiFile[track][event].seconds;
-                newNote.laneIndex = midiFile[track][event].getKeyNumber() % LANE_COUNT;
+                // テンポチェンジを考慮した正確な秒数を取得
+                newNote.spawnTime = midiFile.getTimeInSeconds(0, event);
+                newNote.laneIndex = midiFile[0][event].getKeyNumber() % LANE_COUNT;
                 
                 newNote.shape.setSize(sf::Vector2f(LANE_WIDTH, NOTE_HEIGHT));
                 newNote.shape.setFillColor(sf::Color::Cyan);
@@ -105,6 +110,7 @@ std::vector<Note> loadChartFromMidi(const std::string& path) {
         }
     }
     
+    // 念のため、spawnTimeでソートする
     std::sort(chart.begin(), chart.end(), [](const Note& a, const Note& b) {
         return a.spawnTime < b.spawnTime;
     });

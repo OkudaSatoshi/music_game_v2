@@ -28,5 +28,16 @@
         "chart_path": "midi/NasturtiumHard.mid"
       }
     ]
+  },
+  {
+    "title": "TEMPOCHANGE",
+    "audio_path": "audio/tempochange.ogg",
+    "background_path": "img/nasturtium.jpg",
+    "charts": [
+      {
+        "difficulty": "NORMAL",
+        "chart_path": "midi/tempochange.mid"
+      }
+    ]
   }
 ]
